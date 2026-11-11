@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+:root {
+  --font-poppins: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-merriweather: 'Merriweather', Georgia, Cambria, 'Times New Roman', serif;
+}
+
+@theme {
+  /* TalentCore Neutral Placeholder Design System */
+  /* Primary Action & Interactive Elements */
+  --color-brand-green: #2563EB;
+  --color-primary: #2563EB;
+
+  /* Secondary Accent & Subtle Highlights */
+  --color-brand-orange: #475569;
+  --color-secondary: #475569;
+
+  /* Neutral Light Surface & Borders */
+  --color-brand-ash: #F1F5F9;
+  --color-surface: #F1F5F9;
+
+  /* Neutral Deep Dark / Typography Base */
+  --color-brand-dark: #0F172A;
+  --color-dark: #0F172A;
+
+  /* Neutral Clean White */
+  --color-brand-white: #FFFFFF;
+  --color-white: #FFFFFF;
+
+  /* Typography */
+  --font-header: var(--font-poppins), sans-serif;
+  --font-body: var(--font-merriweather), var(--font-poppins), sans-serif;
+
+  /* Custom Neutral Shadows */
+  --shadow-brand-glow: 0 10px 30px -10px rgba(37, 99, 235, 0.20);
+  --shadow-card-hover: 0 20px 40px -15px rgba(15, 23, 42, 0.08);
+}
+
+@layer base {
+  body {
+    color: var(--color-brand-dark);
+    font-family: var(--font-body);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-header);
+    color: inherit;
+  }
+}
+
+/* Custom Hide Scrollbar Utility */
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Hide Next.js Development Indicator */
+nextjs-portal,
+[data-nextjs-dev-indicator],
+[data-nextjs-toast] {
+  display: none !important;
+}
