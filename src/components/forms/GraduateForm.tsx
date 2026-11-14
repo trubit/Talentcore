@@ -1,14 +1,16 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   ArrowLeft, ArrowRight, Loader2, CheckCircle2, 
   GraduationCap, Upload, AlertCircle 
 } from "lucide-react";
 import { submitDynamicForm } from "@/components/DynamicForm/actions";
+import { useFormModal } from "@/context/FormModalContext";
 
 interface GraduateFormProps {
+  formId?: string;
   initialSchema?: any[]; 
   isAdmin?: boolean;
   onSuccess?: (data: any) => void;
@@ -16,12 +18,14 @@ interface GraduateFormProps {
 }
 
 export default function GraduateForm({ 
+  formId = "application",
   initialSchema = [], 
   isAdmin = false, 
   onSuccess, 
   onClose 
 }: GraduateFormProps) {
-  
+  const { setIsDirty } = useFormModal();
+
   // 1. DATA NORMALIZER: Synchronize schema dynamically with props
   const schema = useMemo(() => {
     if (!initialSchema || initialSchema.length === 0) return [];
@@ -44,9 +48,32 @@ export default function GraduateForm({
   const totalSteps = schema.length;
   const currentSection = schema[currentStep - 1] || schema[0];
 
+  // Restore draft from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`talentcore_draft_${formId}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === "object") {
+          setFormData(parsed);
+          setIsDirty(true);
+        }
+      }
+    } catch {}
+  }, [formId, setIsDirty]);
+
   const handleInputChange = (fieldId: string, value: any) => {
     if (validationError) setValidationError(null);
-    setFormData(prev => ({ ...prev, [fieldId]: value }));
+    setFormData(prev => {
+      const next = { ...prev, [fieldId]: value };
+      try {
+        if (!(value instanceof File)) {
+          localStorage.setItem(`talentcore_draft_${formId}`, JSON.stringify(next));
+        }
+      } catch {}
+      return next;
+    });
+    setIsDirty(true);
   };
 
   // Validate active step fields
@@ -85,12 +112,16 @@ export default function GraduateForm({
         }
       }
 
-      const response = await submitDynamicForm("application", submissionData);
+      const response = await submitDynamicForm(formId, submissionData);
       
       if (!response.success) {
         throw new Error(response.error || "Submission failed.");
       }
 
+      try {
+        localStorage.removeItem(`talentcore_draft_${formId}`);
+      } catch {}
+      setIsDirty(false);
       setIsSuccess(true);
       if (onSuccess) onSuccess(formData);
     } catch (err: any) {

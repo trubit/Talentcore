@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ArrowRight, Loader2, CheckCircle2, Send, Upload, AlertCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, CheckCircle2, Send, Upload, AlertCircle, Save } from "lucide-react";
 import { submitDynamicForm } from "./actions";
+import { useOptionalFormModal } from "@/context/FormModalContext";
 
 export interface FormFieldDefinition {
   id: string;
@@ -32,7 +33,8 @@ export default function DynamicForm({
   initialSchema = [], 
   onSuccess 
 }: DynamicFormProps) {
-  
+  const formModalContext = useOptionalFormModal();
+
   // 1. DATA NORMALIZER: Synchronize schema dynamically with props
   const schema: FormStepDefinition[] = useMemo(() => {
     if (!initialSchema || initialSchema.length === 0) return [];
@@ -56,6 +58,21 @@ export default function DynamicForm({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [draftSavedMsg, setDraftSavedMsg] = useState(false);
+
+  // Restore draft from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`talentcore_draft_${formId}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === "object") {
+          setFormData(parsed);
+          formModalContext?.setIsDirty(true);
+        }
+      }
+    } catch {}
+  }, [formId]);
 
   if (!schema || schema.length === 0) {
     return (
@@ -70,7 +87,26 @@ export default function DynamicForm({
 
   const handleInputChange = (fieldId: string, value: any) => {
     if (validationError) setValidationError(null);
-    setFormData(prev => ({ ...prev, [fieldId]: value }));
+    setFormData(prev => {
+      const next = { ...prev, [fieldId]: value };
+      try {
+        if (!(value instanceof File)) {
+          localStorage.setItem(`talentcore_draft_${formId}`, JSON.stringify(next));
+        }
+      } catch {}
+      return next;
+    });
+    formModalContext?.setIsDirty(true);
+  };
+
+  const handleSaveDraft = () => {
+    try {
+      localStorage.setItem(`talentcore_draft_${formId}`, JSON.stringify(formData));
+      setDraftSavedMsg(true);
+      setTimeout(() => setDraftSavedMsg(false), 2500);
+    } catch (e) {
+      console.error("Failed to save draft:", e);
+    }
   };
 
   // Validate only the fields present in the active step
@@ -116,6 +152,10 @@ export default function DynamicForm({
         throw new Error(response.error || "Submission failed.");
       }
 
+      try {
+        localStorage.removeItem(`talentcore_draft_${formId}`);
+      } catch {}
+      formModalContext?.setIsDirty(false);
       setIsSuccess(true);
       if (onSuccess) onSuccess(formData);
     } catch (err: any) {
@@ -280,7 +320,7 @@ export default function DynamicForm({
       )}
 
       {/* Footer Navigation */}
-      <div className="flex items-center justify-between mt-6 sm:mt-8 pt-4 sm:pt-5 border-t border-brand-ash/40">
+      <div className="flex flex-wrap items-center justify-between gap-3 mt-6 sm:mt-8 pt-4 sm:pt-5 border-t border-brand-ash/40">
         <button
           type="button"
           onClick={() => setCurrentStep(prev => Math.max(1, prev - 1))}
@@ -290,20 +330,32 @@ export default function DynamicForm({
           <ArrowLeft className="w-3.5 h-3.5" /> Previous
         </button>
 
-        <button
-          type="button"
-          onClick={handleNext}
-          disabled={isSubmitting}
-          className="flex items-center justify-center gap-2 bg-brand-dark text-white px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm hover:bg-brand-orange active:scale-95 transition-all disabled:opacity-50 cursor-pointer shadow-xs"
-        >
-          {isSubmitting ? (
-            <><Loader2 className="w-4 h-4 animate-spin" /> <span>Uploading & Saving...</span></>
-          ) : currentStep === totalSteps ? (
-            <><span>Submit Form</span> <Send className="w-4 h-4" /></>
-          ) : (
-            <><span>Continue</span> <ArrowRight className="w-4 h-4" /></>
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSaveDraft}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-brand-ash/80 text-brand-dark/70 hover:text-brand-dark hover:bg-brand-ash/30 text-[11px] font-semibold transition-colors cursor-pointer"
+            title="Save draft locally"
+          >
+            <Save className="w-3.5 h-3.5 text-brand-green" />
+            <span>{draftSavedMsg ? "Draft Saved!" : "Save Draft"}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleNext}
+            disabled={isSubmitting}
+            className="flex items-center justify-center gap-2 bg-brand-dark text-white px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm hover:bg-brand-orange active:scale-95 transition-all disabled:opacity-50 cursor-pointer shadow-xs"
+          >
+            {isSubmitting ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> <span>Uploading & Saving...</span></>
+            ) : currentStep === totalSteps ? (
+              <><span>Submit Form</span> <Send className="w-4 h-4" /></>
+            ) : (
+              <><span>Continue</span> <ArrowRight className="w-4 h-4" /></>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

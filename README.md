@@ -52,3 +52,9 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 npm run build
 npm run start
 ```
+
+## Contributors
+
+- **Ezika trust chidi** ([@trubit](https://github.com/trubit))
+- **45Raj** ([@45Raj](https://github.com/45Raj))
+

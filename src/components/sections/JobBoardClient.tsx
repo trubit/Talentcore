@@ -89,7 +89,7 @@ export default function JobBoardClient({ jobs = [] }: { jobs?: Job[] }) {
             key={job.id} 
             className={`shrink-0 w-[84vw] xs:w-[300px] sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] snap-start rounded-2xl sm:rounded-[2rem] p-5 sm:p-6 flex flex-col justify-between shadow-card-hover ${
               job.theme === "green" 
-                ? "bg-gradient-to-br from-brand-green to-[#004d00] text-brand-white" 
+                ? "bg-gradient-to-br from-brand-green to-brand-green/80 text-brand-white" 
                 : "bg-brand-dark text-brand-white"
             }`}
           >

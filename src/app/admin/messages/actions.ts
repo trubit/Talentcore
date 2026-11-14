@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { contactMessages } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { handleDatabaseError } from "@/lib/db/errors";
 
 export type ContactMessage = {
   id: string | number;
@@ -26,8 +27,7 @@ export async function updateMessageStatus(id: string | number, newStatus: "New" 
     revalidatePath("/admin/messages");
     return { success: true };
   } catch (error) {
-    console.error(`[BACKEND] Error updating message status:`, error);
-    return { success: false, error: "Failed to update status." };
+    return handleDatabaseError(error, "Failed to update message status.");
   }
 }
 
@@ -39,7 +39,6 @@ export async function deleteMessage(id: string | number) {
     revalidatePath("/admin/messages");
     return { success: true };
   } catch (error) {
-    console.error(`[BACKEND] Error deleting message:`, error);
-    return { success: false, error: "Failed to delete message." };
+    return handleDatabaseError(error, "Failed to delete message.");
   }
 }

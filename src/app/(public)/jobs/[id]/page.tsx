@@ -28,7 +28,11 @@ function formatDescription(raw: string = ""): string {
     .replace(/^### (.*$)/gim, '<h3 class="font-header font-bold text-base sm:text-lg text-brand-dark mt-6 mb-2">$1</h3>')
     .replace(/^## (.*$)/gim, '<h2 class="font-header font-bold text-lg sm:text-xl text-brand-dark mt-6 mb-2">$1</h2>')
     .replace(/\*\*(.*?)\*\*/gim, '<strong class="font-bold text-brand-dark">$1</strong>')
+    .replace(/\*(.*?)\*/gim, '<em class="italic text-brand-dark">$1</em>')
+    .replace(/<u>(.*?)<\/u>/gim, '<u class="underline text-brand-dark">$1</u>')
+    .replace(/\[(.*?)\]\((.*?)\)/gim, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-brand-green underline">$1</a>')
     .replace(/^[•\-] (.*$)/gim, '<li class="ml-4 list-disc text-brand-dark/80 mb-1.5 leading-relaxed">$1</li>')
+    .replace(/^\d+\. (.*$)/gim, '<li class="ml-4 list-decimal text-brand-dark/80 mb-1.5 leading-relaxed">$1</li>')
     .replace(/\n\n+/g, '</p><p class="mb-4 leading-relaxed">')
     .replace(/\n/g, '<br />');
 
@@ -51,7 +55,7 @@ export default async function JobDetailsPage({ params }: JobDetailsProps) {
     notFound();
   }
 
-  // 2. Fetch Similar Jobs matching the same industry
+  // 2. Fetch Similar Jobs matching the same industry (up to 3)
   let similarRecords = await db.query.jobs.findMany({
     where: and(
       ne(jobs.id, id),
@@ -59,11 +63,11 @@ export default async function JobDetailsPage({ params }: JobDetailsProps) {
       jobRecord.industry ? eq(jobs.industry, jobRecord.industry) : undefined
     ),
     orderBy: [desc(jobs.createdAt)],
-    limit: 2,
+    limit: 3,
   });
 
-  // Fallback: If less than 2 jobs in the same industry, backfill with newest active jobs
-  if (similarRecords.length < 2) {
+  // Fallback: If less than 3 jobs in the same industry, backfill with newest active jobs
+  if (similarRecords.length < 3) {
     const existingIds = [id, ...similarRecords.map((j) => j.id)];
     const fallbackJobs = await db.query.jobs.findMany({
       where: and(
@@ -71,11 +75,11 @@ export default async function JobDetailsPage({ params }: JobDetailsProps) {
         ne(jobs.id, id)
       ),
       orderBy: [desc(jobs.createdAt)],
-      limit: 4,
+      limit: 6,
     });
 
     const additionalJobs = fallbackJobs.filter((j) => !existingIds.includes(j.id));
-    similarRecords = [...similarRecords, ...additionalJobs].slice(0, 2);
+    similarRecords = [...similarRecords, ...additionalJobs].slice(0, 3);
   }
 
   // 3. Format Date Values
@@ -263,6 +267,7 @@ export default async function JobDetailsPage({ params }: JobDetailsProps) {
               <ApplyButton 
                 method={jobRecord.applicationMethod} 
                 jobTitle={jobRecord.title} 
+                gradFillCode={jobRecord.gradFillCode}
               />
             </div>
 
@@ -278,7 +283,9 @@ export default async function JobDetailsPage({ params }: JobDetailsProps) {
                 Join our talent network to receive direct referral updates and job opening alerts.
               </p>
               <a 
-                href="#talent-network" 
+                href="https://bit.ly/gradfill-network" 
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-brand-orange font-bold text-xs hover:underline active:scale-95 transition-all"
               >
                 <span>Join Network</span>

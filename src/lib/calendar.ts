@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { bookings, availabilitySettings } from "@/lib/db/schema";
 import { eq, and, gte, lte, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { handleDatabaseError } from "@/lib/db/errors";
 
 // Default schedule fallback (Mon–Fri, 9:00 AM to 5:00 PM WAT)
 const DEFAULT_SCHEDULE: Record<string, { enabled: boolean; start: string; end: string }> = {
@@ -176,43 +177,11 @@ export async function scheduleMeeting(
   }
 
   try {
-    const clientEmailEnv = process.env.GOOGLE_CLIENT_EMAIL;
-    const privateKeyEnv = process.env.GOOGLE_PRIVATE_KEY;
-    const targetCalendarId = 
-      process.env.GOOGLE_CALENDAR_ID || 
-      process.env.GOOGLE_TARGET_CALENDAR || 
-      "primary";
-
-    if (!clientEmailEnv || !privateKeyEnv) {
-      console.error("[GOOGLE CALENDAR] Missing credentials in .env");
-      return { 
-        success: false, 
-        error: "Google Calendar service account is not configured." 
-      };
-    }
-
     // Dynamic slot duration from settings
     const settingsRecord = await db.query.availabilitySettings.findFirst({
       where: eq(availabilitySettings.id, "default"),
     });
     const durationMinutes = settingsRecord?.slotDuration || 15;
-
-    const formattedPrivateKey = privateKeyEnv
-      .replace(/^"|"$/g, "")
-      .replace(/\\n/g, "\n");
-
-    const auth = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: clientEmailEnv,
-        private_key: formattedPrivateKey,
-      },
-      scopes: [
-        "https://www.googleapis.com/auth/calendar",
-        "https://www.googleapis.com/auth/calendar.events",
-      ],
-    });
-
-    const calendar = google.calendar({ version: "v3", auth });
 
     // Parse 12h time string
     const cleanTime = timeStr.trim().toUpperCase();
@@ -246,56 +215,95 @@ export async function scheduleMeeting(
       };
     }
 
-    const summary = meetingType === "employer"
-      ? `TalentCore Alignment Call: ${companyName || clientName}`
-      : `TalentCore Screening Call: ${clientName}`;
+    let calendarEventId: string | null = null;
+    let hangoutLink = "";
+    let htmlLink = "";
 
-    const description = meetingType === "employer"
-      ? `Employer Discovery Call\n\nContact: ${clientName} (${clientEmail})\nCompany: ${companyName || "N/A"}\nNotes: ${notes}`
-      : `Candidate Screening Call\n\nCandidate: ${clientName} (${clientEmail})\nNotes: ${notes}`;
+    // Optional Non-Blocking Google Calendar Sync
+    const clientEmailEnv = process.env.GOOGLE_CLIENT_EMAIL;
+    const privateKeyEnv = process.env.GOOGLE_PRIVATE_KEY;
+    const targetCalendarId = 
+      process.env.GOOGLE_CALENDAR_ID || 
+      process.env.GOOGLE_TARGET_CALENDAR || 
+      "primary";
 
-    const eventPayload: any = {
-      summary,
-      description,
-      start: {
-        dateTime: startDate.toISOString(),
-        timeZone: "Africa/Lagos",
-      },
-      end: {
-        dateTime: endDate.toISOString(),
-        timeZone: "Africa/Lagos",
-      },
-      conferenceData: {
-        createRequest: {
-          requestId: `talentcore-${Date.now()}`,
-          conferenceSolutionKey: { type: "hangoutsMeet" },
-        },
-      },
-    };
+    if (clientEmailEnv && privateKeyEnv) {
+      try {
+        const formattedPrivateKey = privateKeyEnv
+          .replace(/^"|"$/g, "")
+          .replace(/\\n/g, "\n");
 
-    let response;
-    try {
-      response = await calendar.events.insert({
-        calendarId: targetCalendarId,
-        requestBody: eventPayload,
-        conferenceDataVersion: 1,
-      });
-    } catch (insertError: any) {
-      console.warn("[GOOGLE CALENDAR] Retrying insert without conferenceData:", insertError?.message);
-      delete eventPayload.conferenceData;
+        const auth = new google.auth.GoogleAuth({
+          credentials: {
+            client_email: clientEmailEnv,
+            private_key: formattedPrivateKey,
+          },
+          scopes: [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.events",
+          ],
+        });
 
-      response = await calendar.events.insert({
-        calendarId: targetCalendarId,
-        requestBody: eventPayload,
-      });
+        const calendar = google.calendar({ version: "v3", auth });
+
+        const summary = meetingType === "employer"
+          ? `TalentCore Alignment Call: ${companyName || clientName}`
+          : `TalentCore Screening Call: ${clientName}`;
+
+        const description = meetingType === "employer"
+          ? `Employer Discovery Call\n\nContact: ${clientName} (${clientEmail})\nCompany: ${companyName || "N/A"}\nNotes: ${notes}`
+          : `Candidate Screening Call\n\nCandidate: ${clientName} (${clientEmail})\nNotes: ${notes}`;
+
+        const eventPayload: any = {
+          summary,
+          description,
+          start: {
+            dateTime: startDate.toISOString(),
+            timeZone: "Africa/Lagos",
+          },
+          end: {
+            dateTime: endDate.toISOString(),
+            timeZone: "Africa/Lagos",
+          },
+          conferenceData: {
+            createRequest: {
+              requestId: `talentcore-${Date.now()}`,
+              conferenceSolutionKey: { type: "hangoutsMeet" },
+            },
+          },
+        };
+
+        let response;
+        try {
+          response = await calendar.events.insert({
+            calendarId: targetCalendarId,
+            requestBody: eventPayload,
+            conferenceDataVersion: 1,
+          });
+        } catch (insertError: any) {
+          console.warn("[GOOGLE CALENDAR] Retrying insert without conferenceData:", insertError?.message);
+          delete eventPayload.conferenceData;
+
+          response = await calendar.events.insert({
+            calendarId: targetCalendarId,
+            requestBody: eventPayload,
+          });
+        }
+
+        calendarEventId = response?.data?.id || null;
+        hangoutLink = 
+          response?.data?.hangoutLink || 
+          response?.data?.conferenceData?.entryPoints?.[0]?.uri || 
+          "";
+        htmlLink = response?.data?.htmlLink || "";
+      } catch (googleError: any) {
+        console.warn("[GOOGLE CALENDAR SYNC WARNING - NON BLOCKING]:", googleError?.message || googleError);
+      }
+    } else {
+      console.info("[GOOGLE CALENDAR] Google service account credentials not configured. Saving booking to PostgreSQL directly.");
     }
 
-    const hangoutLink = 
-      response.data.hangoutLink || 
-      response.data.conferenceData?.entryPoints?.[0]?.uri || 
-      "";
-
-    // Insert into PostgreSQL
+    // Persist booking directly into PostgreSQL
     const [newBooking] = await db
       .insert(bookings)
       .values({
@@ -304,32 +312,26 @@ export async function scheduleMeeting(
         contactName: clientName,
         scheduledAt: startDate,
         durationMinutes: durationMinutes,
-        meetLink: hangoutLink,
-        calendarEventId: response.data.id || null,
+        meetLink: hangoutLink || null,
+        calendarEventId: calendarEventId,
         notes: notes,
         status: "CONFIRMED",
       })
       .returning();
 
-    // Revalidate all administrative views
+    // Revalidate administrative views
     revalidatePath("/admin/bookings");
     revalidatePath("/admin");
 
     return { 
       success: true, 
       bookingId: newBooking.id,
-      link: response.data.htmlLink, 
-      meetLink: hangoutLink,
+      link: htmlLink || undefined, 
+      meetLink: hangoutLink || undefined,
       scheduledAt: startDate.toISOString(),
     };
 
   } catch (error: any) {
-    const errorDetails = error?.response?.data?.error?.message || error?.message || "Unknown error";
-    console.error("[GOOGLE CALENDAR API ERROR]", errorDetails);
-
-    return { 
-      success: false, 
-      error: `Calendar error: ${errorDetails}` 
-    };
+    return handleDatabaseError(error, "Booking could not be finalized. Please select another time slot or contact support.");
   }
 }

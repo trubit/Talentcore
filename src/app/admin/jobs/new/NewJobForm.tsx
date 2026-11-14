@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
   ArrowLeft, Save, LayoutTemplate, Briefcase, FileText, 
   Settings2, Sparkles, AlertCircle, Loader2, Link as LinkIcon, 
-  FileJson, Bold, Heading2, Heading3, List, Eye, Edit3
+  FileJson, Bold, Italic, Underline, Heading2, Heading3, 
+  List, ListOrdered, Eye, Edit3
 } from "lucide-react";
 import { createJob } from "../actions"; 
 
@@ -41,6 +42,43 @@ export default function NewJobForm({ availableForms = [] }: { availableForms?: F
   // Rich text description state & preview toggle
   const [description, setDescription] = useState("");
   const [previewMode, setPreviewMode] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+
+  // Draft restoration on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("talentcore_draft_job_new");
+      if (saved) {
+        setDescription(saved);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  // Autosave draft on description change
+  useEffect(() => {
+    if (description) {
+      setIsDirty(true);
+      try {
+        localStorage.setItem("talentcore_draft_job_new", description);
+      } catch (e) {
+        // ignore
+      }
+    }
+  }, [description]);
+
+  // Unsaved changes beforeunload warning
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
 
   // Strictly return only the 8 official forms
   const mappedForms = useMemo(() => {
@@ -79,7 +117,11 @@ export default function NewJobForm({ availableForms = [] }: { availableForms?: F
       .replace(/^### (.*$)/gim, '<h3 class="font-bold text-base sm:text-lg text-brand-dark mt-4 mb-1">$1</h3>')
       .replace(/^## (.*$)/gim, '<h2 class="font-bold text-lg sm:text-xl text-brand-dark mt-5 mb-2">$1</h2>')
       .replace(/\*\*(.*?)\*\*/gim, '<strong class="font-bold text-brand-dark">$1</strong>')
+      .replace(/\*(.*?)\*/gim, '<em class="italic text-brand-dark">$1</em>')
+      .replace(/<u>(.*?)<\/u>/gim, '<u class="underline text-brand-dark">$1</u>')
+      .replace(/\[(.*?)\]\((.*?)\)/gim, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-brand-green underline">$1</a>')
       .replace(/^[•\-] (.*$)/gim, '<li class="ml-4 list-disc text-brand-dark/80 mb-1">$1</li>')
+      .replace(/^\d+\. (.*$)/gim, '<li class="ml-4 list-decimal text-brand-dark/80 mb-1">$1</li>')
       .replace(/\n\n+/g, '</p><p class="mb-3 leading-relaxed">')
       .replace(/\n/g, '<br />');
   };
@@ -99,6 +141,11 @@ export default function NewJobForm({ availableForms = [] }: { availableForms?: F
         throw new Error(result?.error || "Failed to save job.");
       }
       
+      setIsDirty(false);
+      try {
+        localStorage.removeItem("talentcore_draft_job_new");
+      } catch (err) {}
+
       router.push("/admin/jobs");
       router.refresh();
     } catch (err: any) {
@@ -252,11 +299,44 @@ export default function NewJobForm({ availableForms = [] }: { availableForms?: F
                   </button>
                   <button
                     type="button"
+                    onClick={() => insertMarkdown("*", "*", "italic text")}
+                    className="p-1.5 rounded-lg hover:bg-brand-white text-brand-dark/70 hover:text-brand-dark cursor-pointer transition-colors"
+                    title="Italic"
+                  >
+                    <Italic className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertMarkdown("<u>", "</u>", "underlined text")}
+                    className="p-1.5 rounded-lg hover:bg-brand-white text-brand-dark/70 hover:text-brand-dark cursor-pointer transition-colors"
+                    title="Underline"
+                  >
+                    <Underline className="w-3.5 h-3.5" />
+                  </button>
+                  <div className="w-[1px] h-4 bg-brand-ash/60 mx-1" />
+                  <button
+                    type="button"
                     onClick={() => insertMarkdown("• ", "", "Bullet point item")}
                     className="p-1.5 rounded-lg hover:bg-brand-white text-brand-dark/70 hover:text-brand-dark cursor-pointer transition-colors"
                     title="Bullet List"
                   >
                     <List className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertMarkdown("1. ", "", "Numbered item")}
+                    className="p-1.5 rounded-lg hover:bg-brand-white text-brand-dark/70 hover:text-brand-dark cursor-pointer transition-colors"
+                    title="Numbered List"
+                  >
+                    <ListOrdered className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertMarkdown("[", "](https://)", "link text")}
+                    className="p-1.5 rounded-lg hover:bg-brand-white text-brand-dark/70 hover:text-brand-dark cursor-pointer transition-colors"
+                    title="Insert Link"
+                  >
+                    <LinkIcon className="w-3.5 h-3.5" />
                   </button>
                 </div>
               )}

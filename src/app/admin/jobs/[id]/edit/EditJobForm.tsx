@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
-  ArrowLeft, Save, LayoutTemplate, Loader2, Bold, 
-  Heading2, List, Underline, Sparkles 
+  ArrowLeft, Save, LayoutTemplate, Loader2, Bold, Italic,
+  Heading2, Heading3, List, ListOrdered, Underline, Link as LinkIcon, 
+  Eye, Edit3, Sparkles 
 } from "lucide-react";
 import { updateJobAction } from "@/app/admin/jobs/actions";
 
@@ -17,26 +18,79 @@ export default function EditJobForm({ job }: EditJobFormProps) {
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [description, setDescription] = useState(job.description || "");
+  const [previewMode, setPreviewMode] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+
+  // Draft key for this specific job
+  const draftKey = `talentcore_draft_job_${job.id}`;
+
+  // Restore draft if newer
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(draftKey);
+      if (saved && saved !== job.description) {
+        setDescription(saved);
+      }
+    } catch (e) {}
+  }, [draftKey, job.description]);
+
+  // Autosave draft on description change
+  useEffect(() => {
+    if (description && description !== job.description) {
+      setIsDirty(true);
+      try {
+        localStorage.setItem(draftKey, description);
+      } catch (e) {}
+    }
+  }, [description, draftKey, job.description]);
+
+  // Unsaved changes warning
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
 
   // Helper to insert markdown formatting into description textarea
-  const insertFormatting = (prefix: string, suffix: string = "") => {
+  const insertFormatting = (prefix: string, suffix: string = "", placeholder: string = "text") => {
     const textarea = document.getElementById("job-description") as HTMLTextAreaElement;
     if (!textarea) return;
 
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
-    const selectedText = textarea.value.substring(start, end) || "text";
+    const selectedText = textarea.value.substring(start, end) || placeholder;
     const replacement = `${prefix}${selectedText}${suffix}`;
 
     const newDescription = 
       textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
     
     setDescription(newDescription);
+    setIsDirty(true);
 
     setTimeout(() => {
       textarea.focus();
       textarea.setSelectionRange(start + prefix.length, start + prefix.length + selectedText.length);
     }, 0);
+  };
+
+  const renderPreview = (text: string) => {
+    if (!text) return '<p class="text-brand-dark/40 italic">Nothing to preview yet.</p>';
+    return text
+      .replace(/^### (.*$)/gim, '<h3 class="font-bold text-base sm:text-lg text-brand-dark mt-4 mb-1">$1</h3>')
+      .replace(/^## (.*$)/gim, '<h2 class="font-bold text-lg sm:text-xl text-brand-dark mt-5 mb-2">$1</h2>')
+      .replace(/\*\*(.*?)\*\*/gim, '<strong class="font-bold text-brand-dark">$1</strong>')
+      .replace(/\*(.*?)\*/gim, '<em class="italic text-brand-dark">$1</em>')
+      .replace(/<u>(.*?)<\/u>/gim, '<u class="underline text-brand-dark">$1</u>')
+      .replace(/\[(.*?)\]\((.*?)\)/gim, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-brand-green underline">$1</a>')
+      .replace(/^[•\-] (.*$)/gim, '<li class="ml-4 list-disc text-brand-dark/80 mb-1">$1</li>')
+      .replace(/^\d+\. (.*$)/gim, '<li class="ml-4 list-decimal text-brand-dark/80 mb-1">$1</li>')
+      .replace(/\n\n+/g, '</p><p class="mb-3 leading-relaxed">')
+      .replace(/\n/g, '<br />');
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -49,6 +103,10 @@ export default function EditJobForm({ job }: EditJobFormProps) {
     try {
       const response = await updateJobAction(job.id, formData);
       if (response.success) {
+        setIsDirty(false);
+        try {
+          localStorage.removeItem(draftKey);
+        } catch (err) {}
         alert("Job updated successfully!");
         router.push("/admin/jobs");
         router.refresh();
@@ -220,55 +278,109 @@ export default function EditJobForm({ job }: EditJobFormProps) {
               Description & Formatting
             </h2>
             
-            {/* Formatting Toolbar */}
-            <div className="flex items-center gap-1 bg-brand-ash/20 p-1 rounded-xl border border-brand-ash/60 w-fit">
-              <button 
-                type="button" 
-                onClick={() => insertFormatting("**", "**")} 
-                className="p-1.5 hover:bg-brand-white rounded-lg text-brand-dark/70 hover:text-brand-dark transition-colors cursor-pointer"
-                title="Bold (**text**)"
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setPreviewMode(!previewMode)}
+                className="text-xs font-bold flex items-center gap-1.5 text-brand-green hover:underline cursor-pointer"
               >
-                <Bold className="w-4 h-4" />
+                {previewMode ? <Edit3 className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                <span>{previewMode ? "Back to Edit" : "Preview Layout"}</span>
               </button>
-              <button 
-                type="button" 
-                onClick={() => insertFormatting("<u>", "</u>")} 
-                className="p-1.5 hover:bg-brand-white rounded-lg text-brand-dark/70 hover:text-brand-dark transition-colors cursor-pointer"
-                title="Underline (<u>text</u>)"
-              >
-                <Underline className="w-4 h-4" />
-              </button>
-              <button 
-                type="button" 
-                onClick={() => insertFormatting("\n### ", "\n")} 
-                className="p-1.5 hover:bg-brand-white rounded-lg text-brand-dark/70 hover:text-brand-dark transition-colors cursor-pointer"
-                title="Section Heading (### Heading)"
-              >
-                <Heading2 className="w-4 h-4" />
-              </button>
-              <button 
-                type="button" 
-                onClick={() => insertFormatting("\n• ")} 
-                className="p-1.5 hover:bg-brand-white rounded-lg text-brand-dark/70 hover:text-brand-dark transition-colors cursor-pointer"
-                title="Bullet Point (• Item)"
-              >
-                <List className="w-4 h-4" />
-              </button>
+
+              {/* Formatting Toolbar */}
+              {!previewMode && (
+                <div className="flex flex-wrap items-center gap-1 bg-brand-ash/20 p-1 rounded-xl border border-brand-ash/60 w-fit">
+                  <button 
+                    type="button" 
+                    onClick={() => insertFormatting("## ", "\n", "Section Heading")} 
+                    className="p-1.5 hover:bg-brand-white rounded-lg text-brand-dark/70 hover:text-brand-dark text-xs font-bold flex items-center gap-0.5 cursor-pointer transition-colors"
+                    title="Heading 2"
+                  >
+                    <Heading2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => insertFormatting("### ", "\n", "Subsection Heading")} 
+                    className="p-1.5 hover:bg-brand-white rounded-lg text-brand-dark/70 hover:text-brand-dark text-xs font-bold flex items-center gap-0.5 cursor-pointer transition-colors"
+                    title="Heading 3"
+                  >
+                    <Heading3 className="w-3.5 h-3.5" />
+                  </button>
+                  <div className="w-[1px] h-4 bg-brand-ash/60 mx-0.5" />
+                  <button 
+                    type="button" 
+                    onClick={() => insertFormatting("**", "**", "bold text")} 
+                    className="p-1.5 hover:bg-brand-white rounded-lg text-brand-dark/70 hover:text-brand-dark transition-colors cursor-pointer"
+                    title="Bold"
+                  >
+                    <Bold className="w-3.5 h-3.5" />
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => insertFormatting("*", "*", "italic text")} 
+                    className="p-1.5 hover:bg-brand-white rounded-lg text-brand-dark/70 hover:text-brand-dark transition-colors cursor-pointer"
+                    title="Italic"
+                  >
+                    <Italic className="w-3.5 h-3.5" />
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => insertFormatting("<u>", "</u>", "underlined text")} 
+                    className="p-1.5 hover:bg-brand-white rounded-lg text-brand-dark/70 hover:text-brand-dark transition-colors cursor-pointer"
+                    title="Underline"
+                  >
+                    <Underline className="w-3.5 h-3.5" />
+                  </button>
+                  <div className="w-[1px] h-4 bg-brand-ash/60 mx-0.5" />
+                  <button 
+                    type="button" 
+                    onClick={() => insertFormatting("• ", "", "Bullet point")} 
+                    className="p-1.5 hover:bg-brand-white rounded-lg text-brand-dark/70 hover:text-brand-dark transition-colors cursor-pointer"
+                    title="Bullet List"
+                  >
+                    <List className="w-3.5 h-3.5" />
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => insertFormatting("1. ", "", "Numbered item")} 
+                    className="p-1.5 hover:bg-brand-white rounded-lg text-brand-dark/70 hover:text-brand-dark transition-colors cursor-pointer"
+                    title="Numbered List"
+                  >
+                    <ListOrdered className="w-3.5 h-3.5" />
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => insertFormatting("[", "](https://)", "link text")} 
+                    className="p-1.5 hover:bg-brand-white rounded-lg text-brand-dark/70 hover:text-brand-dark transition-colors cursor-pointer"
+                    title="Link"
+                  >
+                    <LinkIcon className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
           <div className="space-y-5">
             <div>
-              <textarea 
-                id="job-description"
-                name="description"
-                rows={12} 
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full bg-brand-ash/15 border border-brand-ash/70 rounded-xl p-4 text-sm text-brand-dark focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green transition-all resize-y leading-relaxed font-mono text-xs"
-                placeholder="Write the role details, responsibilities, and requirements here..."
-                required
-              />
+              {previewMode ? (
+                <div 
+                  className="w-full bg-brand-ash/10 border border-brand-ash/70 rounded-xl p-4 sm:p-5 text-xs sm:text-sm text-brand-dark leading-relaxed min-h-[220px]"
+                  dangerouslySetInnerHTML={{ __html: renderPreview(description) }}
+                />
+              ) : (
+                <textarea 
+                  id="job-description"
+                  name="description"
+                  rows={12} 
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full bg-brand-ash/15 border border-brand-ash/70 rounded-xl p-4 text-sm text-brand-dark focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green transition-all resize-y leading-relaxed font-mono text-xs"
+                  placeholder="Write the role details, responsibilities, and requirements here..."
+                  required
+                />
+              )}
             </div>
 
             <div>

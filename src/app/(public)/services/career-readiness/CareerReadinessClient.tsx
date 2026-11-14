@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import { 
   ArrowLeft, CheckCircle2, Compass, FileText, Mic, Target, 
-  Calendar, Star, UserCircle2, X
+  Calendar, Star, UserCircle2 
 } from "lucide-react";
 import FaqAccordion from "@/components/FaqAccordion";
-import DynamicForm from "@/components/DynamicForm";
+import { useFormModal } from "@/context/FormModalContext";
 
 const FAQS = [
   {
@@ -36,16 +35,16 @@ const COACHES = [
 ];
 
 export default function CareerReadinessClient({ initialSchema }: { initialSchema: any[] }) {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { openFormModal } = useFormModal();
 
-  useEffect(() => {
-    if (isModalOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
-    }
-    return () => { document.body.style.overflow = "unset"; };
-  }, [isModalOpen]);
+  const handleOpenForm = () => {
+    openFormModal({
+      formId: "career_readiness",
+      title: "Request Career Readiness",
+      initialSchema,
+      isGraduate: true,
+    });
+  };
 
   return (
     <main className="min-h-screen bg-brand-white pt-20 xs:pt-24 sm:pt-28 md:pt-32 pb-14 sm:pb-20 md:pb-24 relative">
@@ -81,7 +80,7 @@ export default function CareerReadinessClient({ initialSchema }: { initialSchema
             
             {/* Modal Trigger */}
             <button 
-              onClick={() => setIsModalOpen(true)}
+              onClick={handleOpenForm}
               className="w-full xs:w-auto bg-brand-green text-brand-white px-7 sm:px-8 py-3.5 sm:py-4 rounded-full text-xs sm:text-sm md:text-base font-bold hover:bg-brand-orange active:scale-95 transition-all inline-flex items-center justify-center gap-2 cursor-pointer shadow-sm text-center"
             >
               <span>Start Here</span>
@@ -196,7 +195,7 @@ export default function CareerReadinessClient({ initialSchema }: { initialSchema
 
               {/* Modal Trigger */}
               <button 
-                onClick={() => setIsModalOpen(true)}
+                onClick={handleOpenForm}
                 className="w-full inline-block text-center bg-brand-dark text-brand-white py-3 sm:py-3.5 px-4 rounded-xl text-xs sm:text-sm font-bold hover:bg-brand-orange active:scale-98 transition-all cursor-pointer shadow-xs"
               >
                 Request Service
@@ -211,7 +210,7 @@ export default function CareerReadinessClient({ initialSchema }: { initialSchema
                 {COACHES.map((coach, i) => (
                   <div 
                     key={i} 
-                    onClick={() => setIsModalOpen(true)}
+                    onClick={handleOpenForm}
                     className="bg-white/5 border border-white/10 rounded-xl sm:rounded-2xl p-4 sm:p-5 hover:bg-white/10 active:scale-98 transition-all cursor-pointer group"
                   >
                     <h4 className="font-bold text-sm sm:text-base text-brand-orange mb-1 group-hover:text-brand-green transition-colors">
@@ -247,38 +246,6 @@ export default function CareerReadinessClient({ initialSchema }: { initialSchema
         
         <FaqAccordion faqs={FAQS} />
       </section>
-
-      {/* Application Form Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 xs:p-4 sm:p-6 bg-brand-dark/80 backdrop-blur-sm overflow-y-auto">
-          <div 
-            className="fixed inset-0" 
-            onClick={() => setIsModalOpen(false)}
-          />
-          
-          <div className="relative w-full max-w-3xl bg-brand-white rounded-2xl sm:rounded-[2rem] shadow-2xl my-auto py-2 z-10 overflow-hidden">
-            {/* Header / Close Button */}
-            <div className="flex items-center justify-between px-4 py-3.5 sm:px-6 sm:py-4 border-b border-brand-ash/50 bg-brand-ash/20">
-              <h3 className="font-header text-lg sm:text-2xl font-bold text-brand-dark">Request Career Readiness</h3>
-              <button 
-                onClick={() => setIsModalOpen(false)}
-                className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center text-brand-dark/60 hover:text-brand-dark bg-brand-white rounded-full transition-colors shadow-xs active:scale-95 cursor-pointer"
-                aria-label="Close modal"
-              >
-                <X className="w-4 h-4 sm:w-5 sm:h-5" />
-              </button>
-            </div>
-
-            {/* Form Content Container */}
-            <div className="p-4 sm:p-6 md:p-8 max-h-[calc(85vh-4rem)] overflow-y-auto no-scrollbar">
-              <DynamicForm 
-                formId="career_readiness" 
-                initialSchema={initialSchema} 
-              />
-            </div>
-          </div>
-        </div>
-      )}
 
     </main>
   );

@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { 
   Save, Plus, Trash2, CheckCircle2, ChevronRight, 
-  GripVertical, Sliders, FileCode2, AlertCircle, Inbox 
+  GripVertical, Sliders, FileCode2, AlertCircle, Inbox,
+  ChevronUp, ChevronDown
 } from "lucide-react";
 import { updateFormSchema } from "./actions";
 
@@ -57,6 +58,22 @@ export default function FormsClient({ initialForms }: { initialForms: any[] }) {
   const [isSaved, setIsSaved] = useState(false);
 
   const activeForm = forms.find((f: FormSchema) => f.id === activeFormId);
+
+  const handleMoveField = (fieldIndex: number, direction: "up" | "down") => {
+    if (!activeForm) return;
+    const targetIndex = direction === "up" ? fieldIndex - 1 : fieldIndex + 1;
+    if (targetIndex < 0 || targetIndex >= activeForm.fields.length) return;
+
+    setForms((prevForms) =>
+      prevForms.map((f: FormSchema) => {
+        if (f.id !== activeFormId) return f;
+        const newFields = [...f.fields];
+        const [movedField] = newFields.splice(fieldIndex, 1);
+        newFields.splice(targetIndex, 0, movedField);
+        return { ...f, fields: newFields };
+      })
+    );
+  };
 
   const handleAddField = () => {
     if (!activeForm) return;
@@ -240,11 +257,30 @@ export default function FormsClient({ initialForms }: { initialForms: any[] }) {
                   key={field.id} 
                   className="group relative flex items-start gap-3 sm:gap-4 p-4 sm:p-5 bg-brand-ash/15 border border-brand-ash/70 rounded-2xl hover:border-brand-green/40 hover:bg-brand-ash/25 transition-all shadow-2xs"
                 >
-                  <div className="mt-2.5 flex flex-col items-center gap-1 text-brand-dark/40 shrink-0">
-                    <span className="text-[10px] font-mono font-bold text-brand-dark/60">
-                      0{index + 1}
+                  <div className="mt-1 flex flex-col items-center gap-1 text-brand-dark/40 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleMoveField(index, "up")}
+                      disabled={index === 0}
+                      className="p-1 rounded hover:bg-brand-ash/60 text-brand-dark/60 hover:text-brand-green disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-brand-dark/40 transition-colors cursor-pointer"
+                      title="Move Field Up"
+                      aria-label="Move Field Up"
+                    >
+                      <ChevronUp className="w-4 h-4" />
+                    </button>
+                    <span className="text-[10px] font-mono font-bold text-brand-dark/70">
+                      {index + 1 < 10 ? `0${index + 1}` : index + 1}
                     </span>
-                    <GripVertical className="w-4 h-4 cursor-grab" />
+                    <button
+                      type="button"
+                      onClick={() => handleMoveField(index, "down")}
+                      disabled={index === activeForm.fields.length - 1}
+                      className="p-1 rounded hover:bg-brand-ash/60 text-brand-dark/60 hover:text-brand-green disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-brand-dark/40 transition-colors cursor-pointer"
+                      title="Move Field Down"
+                      aria-label="Move Field Down"
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
                   </div>
                   
                   <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">

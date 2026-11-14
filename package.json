@@ -2,6 +2,16 @@
   "name": "talentcore",
   "version": "0.1.0",
   "private": true,
+  "contributors": [
+    {
+      "name": "Ezika trust chidi",
+      "email": "trustezika831@gmail.com"
+    },
+    {
+      "name": "45Raj",
+      "email": "onlyoneraj00@gmail.com"
+    }
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",

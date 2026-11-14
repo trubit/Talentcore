@@ -174,8 +174,12 @@ export default function CandidatesClient({ initialCandidates }: { initialCandida
     e.preventDefault();
     setIsSubmittingManual(true);
     try {
-      const newCandidate = await createCandidate(manualFormData);
-      setCandidates([newCandidate, ...candidates]);
+      const res = await createCandidate(manualFormData);
+      if ("error" in res) {
+        alert(res.error || "Failed to add candidate manually. Please try again.");
+        return;
+      }
+      setCandidates([res as ExtendedCandidate, ...candidates]);
       setIsAddModalOpen(false);
       setManualFormData({ name: "", email: "", role: "", resumeUrl: "", status: "Available" });
     } catch (error) {
@@ -198,7 +202,7 @@ export default function CandidatesClient({ initialCandidates }: { initialCandida
         setViewingCandidate(updatedCandidate);
         setIsEditingProfile(false);
       } else {
-        alert(result.error || "Failed to update profile.");
+        alert((result as any).error || "Failed to update profile.");
       }
     } catch (error) {
       console.error(error);

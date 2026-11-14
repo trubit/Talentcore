@@ -12,7 +12,7 @@ export default async function JobMatchingPage() {
     const result = await db
       .select()
       .from(formSchemas)
-      .where(eq(formSchemas.id, "candidate_request"))
+      .where(eq(formSchemas.id, "job_matching"))
       .limit(1);
 
     const dbSchema = result[0]?.schemaDefinition;
@@ -20,7 +20,7 @@ export default async function JobMatchingPage() {
       initialSchema = dbSchema;
     }
   } catch (error) {
-    console.error("[BACKEND] Error loading candidate_request schema:", error);
+    console.error("[BACKEND] Error loading job_matching schema:", error);
   }
 
   return <JobMatchingClient initialSchema={initialSchema} />;

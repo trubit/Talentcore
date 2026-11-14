@@ -4,46 +4,47 @@ import { db } from "@/lib/db";
 import { legalDocs } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { handleDatabaseError } from "@/lib/db/errors";
 
 export async function updateLegalDocument(slug: string, content: string, title: string) {
   try {
-    console.log(`🔍 [DEBUG] REAL Server action triggered for: "${slug}"`);
-    
+    if (!slug?.trim() || !title?.trim() || !content?.trim()) {
+      return { success: false, error: "Slug, title, and document content are required." };
+    }
+
+    const cleanSlug = slug.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "-");
+    const cleanTitle = title.trim();
+    const cleanContent = content.trim();
+
     // 1. Check if the document already exists using the unique slug
     const existing = await db.query.legalDocs.findFirst({
-      where: eq(legalDocs.slug, slug),
+      where: eq(legalDocs.slug, cleanSlug),
     });
 
     if (existing) {
       // 2. Update if it exists
       await db.update(legalDocs)
         .set({ 
-          content: content, 
+          title: cleanTitle,
+          content: cleanContent, 
           updatedAt: new Date() 
         })
-        .where(eq(legalDocs.slug, slug));
-      console.log(`✅ [DEBUG] Database UPDATE successful.`);
+        .where(eq(legalDocs.slug, cleanSlug));
     } else {
-      // 3. Insert new row (PostgreSQL auto-generates the UUID for `id`)
+      // 3. Insert new row
       await db.insert(legalDocs).values({
-        slug: slug,
-        title: title,
-        content: content,
+        slug: cleanSlug,
+        title: cleanTitle,
+        content: cleanContent,
         isPublic: true,
       });
-      console.log(`✅ [DEBUG] Database INSERT successful.`);
     }
 
     revalidatePath("/admin/documents");
-    revalidatePath(`/legal/${slug}`);
+    revalidatePath(`/legal/${cleanSlug}`);
     
     return { success: true };
-    
   } catch (error: any) {
-    console.error(`❌ [CRITICAL DATABASE ERROR]:`, error);
-    return { 
-      success: false, 
-      error: error?.message || "Failed to save document to database." 
-    };
+    return handleDatabaseError(error, `Failed to save document "${slug}".`);
   }
 }

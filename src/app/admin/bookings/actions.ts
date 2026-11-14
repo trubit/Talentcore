@@ -5,6 +5,7 @@ import { bookings, availabilitySettings } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { google } from "googleapis";
+import { handleDatabaseError } from "@/lib/db/errors";
 
 // 1. Update Booking Status (Confirmed, Completed, Cancelled)
 export async function updateBookingStatusAction(
@@ -66,8 +67,7 @@ export async function updateBookingStatusAction(
 
     return { success: true };
   } catch (error: any) {
-    console.error("[UPDATE_BOOKING_ERROR]", error);
-    return { success: false, error: error.message || "Failed to update booking status." };
+    return handleDatabaseError(error, "Failed to update booking status.");
   }
 }
 
@@ -80,25 +80,31 @@ export async function saveAvailabilitySettingsAction(payload: {
   maxDaysInFuture: number;
 }) {
   try {
+    const safeSchedule = payload.weeklySchedule || {};
+    const safeSlotDuration = Number(payload.slotDuration) || 15;
+    const safeBufferTime = Number(payload.bufferTime) || 15;
+    const safeMinNoticeHours = Number(payload.minNoticeHours) || 2;
+    const safeMaxDaysInFuture = Number(payload.maxDaysInFuture) || 14;
+
     await db
       .insert(availabilitySettings)
       .values({
         id: "default",
-        weeklySchedule: payload.weeklySchedule,
-        slotDuration: payload.slotDuration,
-        bufferTime: payload.bufferTime,
-        minNoticeHours: payload.minNoticeHours,
-        maxDaysInFuture: payload.maxDaysInFuture,
+        weeklySchedule: safeSchedule,
+        slotDuration: safeSlotDuration,
+        bufferTime: safeBufferTime,
+        minNoticeHours: safeMinNoticeHours,
+        maxDaysInFuture: safeMaxDaysInFuture,
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
         target: availabilitySettings.id,
         set: {
-          weeklySchedule: payload.weeklySchedule,
-          slotDuration: payload.slotDuration,
-          bufferTime: payload.bufferTime,
-          minNoticeHours: payload.minNoticeHours,
-          maxDaysInFuture: payload.maxDaysInFuture,
+          weeklySchedule: safeSchedule,
+          slotDuration: safeSlotDuration,
+          bufferTime: safeBufferTime,
+          minNoticeHours: safeMinNoticeHours,
+          maxDaysInFuture: safeMaxDaysInFuture,
           updatedAt: new Date(),
         },
       });
@@ -106,7 +112,6 @@ export async function saveAvailabilitySettingsAction(payload: {
     revalidatePath("/admin/bookings");
     return { success: true };
   } catch (error: any) {
-    console.error("[SAVE_AVAILABILITY_ERROR]", error);
-    return { success: false, error: error.message || "Failed to save availability settings." };
+    return handleDatabaseError(error, "Failed to save availability settings.");
   }
 }

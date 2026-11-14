@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react"; // Update import
 import Link from "next/link";
-import { ArrowLeft, Edit3, Globe, Zap, CheckCircle2, Star, Users, X } from "lucide-react";
-import DynamicForm from "@/components/DynamicForm";
+import { ArrowLeft, Edit3, Globe, Zap, CheckCircle2, Star, Users } from "lucide-react";
 import JobListingFaq from "@/components/JobListingFaq";
+import { useFormModal } from "@/context/FormModalContext";
 
 const FAQS = [
   {
@@ -18,17 +17,16 @@ const FAQS = [
 ];
 
 export default function JobListingClient({ initialSchema }: { initialSchema: any[] }) {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { openFormModal } = useFormModal();
 
-  // Add this block
-  useEffect(() => {
-    if (isModalOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
-    }
-    return () => { document.body.style.overflow = "unset"; };
-  }, [isModalOpen]);
+  const handleOpenForm = () => {
+    openFormModal({
+      formId: "job_listing",
+      title: "Post a Job Vacancy",
+      initialSchema,
+      isEmployer: true,
+    });
+  };
 
   return (
     <main className="min-h-screen bg-brand-white pt-20 xs:pt-24 sm:pt-28 md:pt-32 pb-14 sm:pb-20 md:pb-24 relative">
@@ -66,10 +64,10 @@ export default function JobListingClient({ initialSchema }: { initialSchema: any
             </p>
             
             <button 
-              onClick={() => setIsModalOpen(true)}
+              onClick={handleOpenForm}
               className="w-full xs:w-auto bg-brand-dark text-brand-white px-7 sm:px-8 py-3.5 sm:py-4 rounded-full text-xs sm:text-sm md:text-base font-bold hover:bg-brand-orange active:scale-95 transition-all inline-flex items-center justify-center gap-2 shadow-brand-glow cursor-pointer text-center"
             >
-              <span>Post a Free Job</span>
+              <span>Post a Job</span>
               <Zap className="w-4 h-4 text-brand-orange fill-brand-orange" />
             </button>
           </div>
@@ -218,35 +216,6 @@ export default function JobListingClient({ initialSchema }: { initialSchema: any
         </div>
         <JobListingFaq faqs={FAQS} />
       </section>
-
-      {/* Modal Dialog */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 xs:p-4 sm:p-6 bg-brand-dark/80 backdrop-blur-sm overflow-y-auto">
-          <div 
-            className="fixed inset-0" 
-            onClick={() => setIsModalOpen(false)} 
-          />
-          
-          <div className="relative w-full max-w-3xl bg-brand-white rounded-2xl sm:rounded-[2rem] shadow-2xl my-auto py-2 z-10 overflow-hidden">
-            {/* Header / Close Button */}
-            <div className="flex items-center justify-between px-4 py-3.5 sm:px-6 sm:py-4 border-b border-brand-ash/50 bg-brand-ash/20">
-              <h3 className="font-header text-lg sm:text-2xl font-bold text-brand-dark">Post a Free Job</h3>
-              <button 
-                onClick={() => setIsModalOpen(false)} 
-                className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center text-brand-dark/60 hover:text-brand-dark bg-brand-white rounded-full transition-colors shadow-xs active:scale-95"
-                aria-label="Close modal"
-              >
-                <X className="w-4 h-4 sm:w-5 sm:h-5 text-brand-dark" />
-              </button>
-            </div>
-
-            {/* Form Scroll Container */}
-            <div className="p-4 sm:p-6 md:p-8 max-h-[calc(85vh-4rem)] overflow-y-auto no-scrollbar">
-              <DynamicForm formId="job_listing" initialSchema={initialSchema} />
-            </div>
-          </div>
-        </div>
-      )}
 
     </main>
   );

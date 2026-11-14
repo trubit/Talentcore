@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { admins, systemPreferences } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { handleDatabaseError } from "@/lib/db/errors";
 
 export type AdminProfile = {
   id: string;
@@ -20,37 +21,43 @@ export type SystemPreferences = {
 // Update Admin Profile Details
 export async function updateProfile(data: AdminProfile) {
   try {
+    if (!data.id?.trim() || !data.email?.trim()) {
+      return { success: false, error: "Admin ID and email are required." };
+    }
+
     await db.update(admins)
       .set({
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: data.email,
+        firstName: data.firstName?.trim() || "",
+        lastName: data.lastName?.trim() || "",
+        email: data.email?.trim()?.toLowerCase(),
       })
       .where(eq(admins.id, data.id));
 
     revalidatePath("/admin/settings");
     return { success: true };
   } catch (error) {
-    console.error("[BACKEND] Error updating profile:", error);
-    return { success: false, error: "Failed to update profile." };
+    return handleDatabaseError(error, "Failed to update profile.");
   }
 }
 
 // Update Global System Preferences
 export async function updatePreferences(data: SystemPreferences) {
   try {
+    const safeExpiry = Number(data.defaultJobExpiry) || 14;
+    const safeNotifications = Boolean(data.emailNotifications);
+
     await db.insert(systemPreferences)
       .values({
         id: "global",
-        defaultJobExpiry: data.defaultJobExpiry,
-        emailNotifications: data.emailNotifications,
+        defaultJobExpiry: safeExpiry,
+        emailNotifications: safeNotifications,
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
         target: systemPreferences.id,
         set: {
-          defaultJobExpiry: data.defaultJobExpiry,
-          emailNotifications: data.emailNotifications,
+          defaultJobExpiry: safeExpiry,
+          emailNotifications: safeNotifications,
           updatedAt: new Date(),
         }
       });
@@ -58,7 +65,6 @@ export async function updatePreferences(data: SystemPreferences) {
     revalidatePath("/admin/settings");
     return { success: true };
   } catch (error) {
-    console.error("[BACKEND] Error updating preferences:", error);
-    return { success: false, error: "Failed to update preferences." };
+    return handleDatabaseError(error, "Failed to update preferences.");
   }
 }

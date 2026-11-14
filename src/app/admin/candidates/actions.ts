@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { candidates, formSubmissions } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { handleDatabaseError } from "@/lib/db/errors";
 
 export type Candidate = {
   id: number | string;
@@ -36,12 +37,10 @@ export async function updateCandidateStatus(
       })
       .where(eq(candidates.id, id as any)); 
     
-    console.log(`[BACKEND] Successfully updated candidate ${id} status to ${dbStatus}`);
     revalidatePath("/admin/candidates");
     return { success: true };
   } catch (error) {
-    console.error(`[BACKEND] Error updating candidate status:`, error);
-    return { success: false, error: "Failed to update candidate status." };
+    return handleDatabaseError(error, "Failed to update candidate status.");
   }
 }
 
@@ -51,12 +50,10 @@ export async function deleteCandidate(id: number | string) {
     await db.delete(candidates)
       .where(eq(candidates.id, id as any));
     
-    console.log(`[BACKEND] Successfully deleted candidate ${id}`);
     revalidatePath("/admin/candidates");
     return { success: true };
   } catch (error) {
-    console.error(`[BACKEND] Error deleting candidate:`, error);
-    return { success: false, error: "Failed to delete candidate." };
+    return handleDatabaseError(error, "Failed to delete candidate.");
   }
 }
 
@@ -69,25 +66,37 @@ export async function convertSubmissionToCandidate(data: {
   resumeUrl?: string;
 }) {
   try {
-    if (!data.fullName || !data.email) {
+    if (!data.fullName?.trim() || !data.email?.trim()) {
       return { success: false, error: "Name and email are required to create a candidate." };
     }
 
-    await db.insert(candidates).values({
-      name: data.fullName, 
-      email: data.email,
-      role: data.role || "General Applicant", 
-      badges: data.badges || [],
-      status: "AVAILABLE",
-      resumeUrl: data.resumeUrl,
+    const cleanEmail = data.email.trim().toLowerCase();
+
+    // Check for existing candidate with same email
+    const existing = await db.query.candidates.findFirst({
+      where: eq(candidates.email, cleanEmail)
     });
 
-    console.log(`[BACKEND] Promoted submission to talent pool: ${data.email}`);
+    if (existing) {
+      return { 
+        success: false, 
+        error: `A candidate with ${cleanEmail} is already in the talent pool.` 
+      };
+    }
+
+    const [inserted] = await db.insert(candidates).values({
+      name: data.fullName.trim(), 
+      email: cleanEmail,
+      role: data.role?.trim() || "General Applicant", 
+      badges: Array.isArray(data.badges) ? data.badges : [],
+      status: "AVAILABLE",
+      resumeUrl: data.resumeUrl?.trim() || null,
+    }).returning();
+
     revalidatePath("/admin/candidates");
-    return { success: true };
+    return { success: true, candidateId: inserted.id };
   } catch (error) {
-    console.error(`[BACKEND] Error promoting submission to candidate:`, error);
-    return { success: false, error: "Failed to promote candidate to talent pool." };
+    return handleDatabaseError(error, "Failed to promote candidate to talent pool.");
   }
 }
 
@@ -97,23 +106,27 @@ export async function createCandidate(data: {
   email: string;
   role: string;
   status: "Available" | "In-Review" | "Placed";
-  resumeUrl?: string; // <-- ADDED: Now accepts the resume link from the manual form
+  resumeUrl?: string;
 }) {
   try {
+    if (!data.name?.trim() || !data.email?.trim()) {
+      return { success: false, error: "Candidate name and email are mandatory." };
+    }
+
+    const cleanEmail = data.email.trim().toLowerCase();
     const dbStatus = data.status === "In-Review" ? "IN_REVIEW" : data.status.toUpperCase() as any;
 
     const insertedRecord = await db.insert(candidates).values({
-      name: data.name, 
-      email: data.email,
-      role: data.role, 
+      name: data.name.trim(), 
+      email: cleanEmail,
+      role: data.role?.trim() || "General Applicant", 
       badges: [],
       status: dbStatus,
-      resumeUrl: data.resumeUrl, // <-- ADDED: Saves it directly to PostgreSQL
+      resumeUrl: data.resumeUrl?.trim() || null,
     }).returning();
 
     const dbRow = insertedRecord[0];
 
-    console.log(`[BACKEND] Created new candidate manually: ${dbRow.name}`);
     revalidatePath("/admin/candidates");
 
     const newCandidate: Candidate = {
@@ -124,14 +137,12 @@ export async function createCandidate(data: {
       badges: (dbRow.badges as string[]) || [],
       status: data.status,
       dateAdded: new Date().toLocaleDateString('en-CA'),
-      resumeUrl: dbRow.resumeUrl || undefined, // <-- ADDED: Returns it to the UI instantly
+      resumeUrl: dbRow.resumeUrl || undefined,
     };
 
     return newCandidate;
-    
   } catch (error) {
-    console.error(`[BACKEND] Error creating candidate:`, error);
-    throw new Error("Failed to create candidate record.");
+    return handleDatabaseError(error, "Failed to create candidate record.");
   }
 }
 
@@ -141,7 +152,7 @@ export async function getGraduateSubmissions() {
     const submissions = await db
       .select()
       .from(formSubmissions)
-      .where(eq(formSubmissions.formId, "application")) // <-- ADDED: Strictly pulls only graduate applications!
+      .where(eq(formSubmissions.formId, "application"))
       .orderBy(desc(formSubmissions.createdAt));
 
     return submissions.map((sub: any) => ({
@@ -159,24 +170,22 @@ export async function updateCandidateProfile(id: string | number, data: Partial<
   try {
     await db.update(candidates)
       .set({
-        name: data.name,
-        email: data.email,
-        role: data.role,
-        resumeUrl: data.resumeUrl,
-        bio: data.bio,
-        linkedinUrl: data.linkedinUrl,
-        portfolioUrl: data.portfolioUrl,
-        experience: data.experience,
-        education: data.education,
+        name: data.name?.trim(),
+        email: data.email?.trim()?.toLowerCase(),
+        role: data.role?.trim(),
+        resumeUrl: data.resumeUrl?.trim() || null,
+        bio: data.bio?.trim() || null,
+        linkedinUrl: data.linkedinUrl?.trim() || null,
+        portfolioUrl: data.portfolioUrl?.trim() || null,
+        experience: Array.isArray(data.experience) ? data.experience : [],
+        education: Array.isArray(data.education) ? data.education : [],
         updatedAt: new Date(),
       })
       .where(eq(candidates.id, id as any));
 
-    console.log(`[BACKEND] Successfully updated candidate profile: ${id}`);
     revalidatePath("/admin/candidates");
     return { success: true };
   } catch (error) {
-    console.error(`[BACKEND] Error updating candidate profile:`, error);
-    return { success: false, error: "Failed to update profile." };
+    return handleDatabaseError(error, "Failed to update profile.");
   }
 }

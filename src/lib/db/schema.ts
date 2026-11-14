@@ -37,7 +37,7 @@ export const bookingStatusEnum = pgEnum('booking_status', [
 
 // 1. Admin Users (For Dashboard Access & Settings)
 export const admins = pgTable('admins', {
-  id: uuid('id').defaultRandom().primaryKey(),
+  id: uuid('id').$defaultFn(() => crypto.randomUUID()).primaryKey(),
   firstName: varchar('first_name', { length: 100 }).notNull(),
   lastName: varchar('last_name', { length: 100 }).notNull(),
   email: varchar('email', { length: 255 }).notNull().unique(),
@@ -47,7 +47,7 @@ export const admins = pgTable('admins', {
 
 // 2. Job Board Table
 export const jobs = pgTable('jobs', {
-  id: uuid('id').defaultRandom().primaryKey(),
+  id: uuid('id').$defaultFn(() => crypto.randomUUID()).primaryKey(),
   title: varchar('title', { length: 255 }).notNull(),
   company: varchar('company', { length: 255 }).notNull(),
   location: varchar('location', { length: 255 }).notNull(),
@@ -72,7 +72,7 @@ export const jobs = pgTable('jobs', {
 
 // 3. Candidates Table
 export const candidates = pgTable('candidates', {
-  id: uuid('id').defaultRandom().primaryKey(),
+  id: uuid('id').$defaultFn(() => crypto.randomUUID()).primaryKey(),
   name: varchar('name', { length: 255 }).notNull(),
   role: varchar('role', { length: 255 }).notNull(),
   email: varchar('email', { length: 255 }).notNull(),
@@ -94,7 +94,7 @@ export const candidates = pgTable('candidates', {
 
 // 4. Contact Messages Table (Inbox)
 export const contactMessages = pgTable('contact_messages', {
-  id: uuid('id').defaultRandom().primaryKey(),
+  id: uuid('id').$defaultFn(() => crypto.randomUUID()).primaryKey(),
   name: varchar('name', { length: 255 }).notNull(),
   email: varchar('email', { length: 255 }).notNull(),
   subject: varchar('subject', { length: 255 }).notNull(),
@@ -109,7 +109,7 @@ export const contactMessages = pgTable('contact_messages', {
 
 // Form Submissions
 export const formSubmissions = pgTable('form_submissions', {
-  id: uuid('id').defaultRandom().primaryKey(),
+  id: uuid('id').$defaultFn(() => crypto.randomUUID()).primaryKey(),
   formId: varchar('form_id', { length: 50 }).notNull(),
   data: jsonb('data').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -153,7 +153,7 @@ export const availabilitySettings = pgTable('availability_settings', {
 
 // 2. Scheduled Bookings Table
 export const bookings = pgTable('bookings', {
-  id: uuid('id').defaultRandom().primaryKey(),
+  id: uuid('id').$defaultFn(() => crypto.randomUUID()).primaryKey(),
   employerEmail: varchar('employer_email', { length: 255 }).notNull(),
   companyName: varchar('company_name', { length: 255 }).notNull(),
   contactName: varchar('contact_name', { length: 255 }), // Contact person name
@@ -175,7 +175,7 @@ export const bookings = pgTable('bookings', {
 
 // Legal Documents
 export const legalDocs = pgTable('legal_docs', {
-  id: uuid('id').defaultRandom().primaryKey(),
+  id: uuid('id').$defaultFn(() => crypto.randomUUID()).primaryKey(),
   slug: varchar('slug', { length: 255 }).notNull().unique(), 
   title: varchar('title', { length: 255 }).notNull(),
   content: text('content').notNull(),

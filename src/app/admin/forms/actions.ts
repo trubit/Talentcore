@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { formSchemas } from "@/lib/db/schema";
 import { eq, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { handleDatabaseError } from "@/lib/db/errors";
 
 // Canonical mapping for service subroutes
 const SERVICE_PATH_MAP: Record<string, string> = {
@@ -20,22 +21,28 @@ const SERVICE_PATH_MAP: Record<string, string> = {
 
 export async function saveFormSchemaAction(formId: string, schemaDefinition: any[]) {
   try {
+    if (!formId?.trim()) {
+      return { success: false, error: "Form identifier is required." };
+    }
+
     // 1. Normalize ID (lowercase, trim, hyphens to underscores, alias cleanup)
     let cleanId = formId.trim().toLowerCase().replace(/-/g, "_");
     if (cleanId === "hr_outsourcing") cleanId = "outsource_hr";
+
+    const safeSchema = Array.isArray(schemaDefinition) ? schemaDefinition : [];
 
     // 2. Atomic Upsert in PostgreSQL via Drizzle
     await db
       .insert(formSchemas)
       .values({
         id: cleanId,
-        schemaDefinition,
+        schemaDefinition: safeSchema,
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
         target: formSchemas.id,
         set: {
-          schemaDefinition,
+          schemaDefinition: safeSchema,
           updatedAt: new Date(),
         },
       });
@@ -57,8 +64,7 @@ export async function saveFormSchemaAction(formId: string, schemaDefinition: any
 
     return { success: true, formId: cleanId };
   } catch (error: any) {
-    console.error(`[SAVE_SCHEMA_ERROR] Form: ${formId}`, error);
-    return { success: false, error: error.message || "Failed to save form schema." };
+    return handleDatabaseError(error, `Failed to save form schema for "${formId}".`);
   }
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   ArrowLeft, ArrowRight, CheckCircle2, Building2, 
@@ -8,8 +8,10 @@ import {
 } from "lucide-react";
 import { submitDynamicForm } from "@/components/DynamicForm/actions";
 import MeetingScheduler from "@/components/scheduling/MeetingScheduler";
+import { useFormModal } from "@/context/FormModalContext";
 
 interface EmployerFormProps {
+  formId?: string;
   initialSchema?: any[]; 
   isAdmin?: boolean;
   onSuccess?: (data: any) => void;
@@ -17,11 +19,13 @@ interface EmployerFormProps {
 }
 
 export default function EmployerForm({ 
+  formId = "candidate_request",
   initialSchema = [], 
   isAdmin = false, 
   onSuccess, 
   onClose 
 }: EmployerFormProps) {
+  const { setIsDirty } = useFormModal();
   
   // 1. DATA NORMALIZER: Synchronize schema dynamically with props
   const schema = useMemo(() => {
@@ -65,9 +69,34 @@ export default function EmployerForm({
     )?.[1] || "";
   }, [formData]);
 
+  // Restore draft from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`talentcore_draft_${formId}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === "object") {
+          setFormData(parsed);
+          setIsDirty(true);
+        }
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+  }, [formId, setIsDirty]);
+
   const handleInputChange = (fieldId: string, value: any) => {
     if (validationError) setValidationError(null);
-    setFormData(prev => ({ ...prev, [fieldId]: value }));
+    setFormData(prev => {
+      const next = { ...prev, [fieldId]: value };
+      try {
+        if (!(value instanceof File)) {
+          localStorage.setItem(`talentcore_draft_${formId}`, JSON.stringify(next));
+        }
+      } catch {}
+      return next;
+    });
+    setIsDirty(true);
   };
 
   // Validate active step fields
@@ -106,12 +135,16 @@ export default function EmployerForm({
         }
       }
 
-      const response = await submitDynamicForm("candidate_request", submissionData);
+      const response = await submitDynamicForm(formId, submissionData);
       
       if (!response.success) {
         throw new Error(response.error || "Submission failed.");
       }
 
+      try {
+        localStorage.removeItem(`talentcore_draft_${formId}`);
+      } catch {}
+      setIsDirty(false);
       setIsSuccess(true);
       if (onSuccess) onSuccess(formData);
     } catch (error: any) {

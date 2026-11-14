@@ -99,7 +99,7 @@ export default function BookingsClient({
         setSettingsSuccess(true);
         setTimeout(() => setSettingsSuccess(false), 3000);
       } else {
-        alert(res.error || "Failed to save settings.");
+        alert((res as any).error || "Failed to save settings.");
       }
     } catch (err) {
       console.error(err);
